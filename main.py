@@ -19,7 +19,7 @@ app.add_middleware(
 # 3. Secure API Key Setup (Using environment variables)
 # It's recommended to load API keys from environment variables for security.
 # You can set it like: export GOOGLE_API_KEY="your_api_key_here"
-API_KEY = os.getenv("GOOGLE_API_KEY")
+API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
     raise ValueError("GOOGLE_API_KEY environment variable not set.")
 genai.configure(api_key=API_KEY)
