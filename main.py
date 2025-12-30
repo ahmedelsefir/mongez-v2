@@ -1,65 +1,90 @@
 import os
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-import google.generativeai as genai
+import google.genai as genai
+from google.genai import types
 from fastapi.middleware.cors import CORSMiddleware
 
-# 1. Initialize FastAPI app
-app = FastAPI(title="Mongez AI - Personal Mentor")
+# 1. Initialize FastAPI Application
+app = FastAPI(
+    title="Mongez AI - Professional Mentor",
+    version="1.0.0",
+    description="A high-performance AI mentor for Programming and English Mastery."
+)
 
-# 2. Enable CORS for Frontend (index.html) connection
+# 2. Configure CORS
+# Allows your frontend (when you buy the domain) to communicate with this server.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[], # TODO: Configure this with your frontend domain for production (e.g., ["https://your-frontend.com"])
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-
-# 3. Secure API Key Setup (Using environment variables)
-# It's recommended to load API keys from environment variables for security.
-# You can set it like: export GOOGLE_API_KEY="your_api_key_here"
+# 3. Direct Gemini API Configuration
+# We use your validated API key directly to ensure 100% connectivity.
 API_KEY = os.getenv("GEMINI_API_KEY")
 if not API_KEY:
-    raise ValueError("GOOGLE_API_KEY environment variable not set.")
-genai.configure(api_key=API_KEY)
+    raise ValueError("GEMINI_API_KEY environment variable not set.")
 
-# Defining the "Personality" of Mongez AI
-SYSTEM_INSTRUCTION = (
-    "You are 'Mongez', a high-level Personal Mentor. Your goals are:\n"
-    "1. Teach Programming: Explain code concepts (Python, JS, TS) step-by-step with clean examples.\n"
-    "2. English Mastery: Correct the user's English mistakes politely and teach technical vocabulary.\n"
-    "3. Interaction Style: Be professional, encouraging, and always provide actionable advice.\n"
-    "4. Language: Respond in Arabic for explanations, but keep code and technical terms in English."
+
+# 4. Mongez Personality Setup (System Instructions)
+SYSTEM_PROMPT = (
+    "You are 'Mongez', an elite Personal Mentor. "
+    "Your core objectives are: "
+    "1. PROGRAMMING: Teach Python, JavaScript, and TypeScript with clean code examples. "
+    "2. ENGLISH: Correct the user's grammar and provide professional vocabulary tips. "
+    "3. EXPLANATION: Use Arabic for conceptual explanations, but keep all code and technical terms in English. "
+    "4. TONE: Be encouraging, professional, and focus on career growth."
 )
 
-model = genai.GenerativeModel(
-    model_name="gemini-1.5-flash",
-    system_instruction=SYSTEM_INSTRUCTION
-)
+# Initialize the Gemini Model
+client = genai.Client()
+model_id = 'gemini-2.0-flash'
 
-# 4. Data Models
+# 5. Data Structures
 class ChatRequest(BaseModel):
     prompt: str
 
 class ChatResponse(BaseModel):
     response: str
 
-# 5. API Endpoints
-@app.get("/")
-async def root():
-    return {"status": "Mongez AI is online", "mentor_mode": "Active"}
+# 6. API Endpoints
+@app.get("/", tags=["Status"])
+async def check_health():
+    """Returns the current status of the Mongez server."""
+    return {
+        "status": "online",
+        "mentor": "Mongez AI",
+        "system": "Active"
+    }
 
-@app.post("/chat", response_model=ChatResponse)
-async def chat_endpoint(request: ChatRequest):
-    if not API_KEY:
-        raise HTTPException(status_code=500, detail="API Key not configured on server.")
+@app.post("/chat", response_model=ChatResponse, tags=["Mentorship"])
+async def ask_mongez(request: ChatRequest):
+    """Sends user queries to the AI and returns the mentor's response."""
+    if not request.prompt:
+        raise HTTPException(status_code=400, detail="Please provide a message.")
     
     try:
-        # Generate response from Gemini
-        response = model.generate_content(request.prompt)
-        return ChatResponse(response=response.text)
+        # Generate response from the AI model
+        contents = [
+            types.Content(
+                role='user',
+                parts=[
+                    types.Part(
+                        text=SYSTEM_PROMPT
+                    ),
+                    types.Part(
+                        text=request.prompt
+                    )
+                ]
+            )
+        ]
+        result = client.models.generate_content(model=model_id, contents=request.prompt)
+        return ChatResponse(response=result.text)
+    
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-# To run this: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+        # Log and return server errors
+        print(f"Server Side Error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Gemini API is busy or key is invalid.")
