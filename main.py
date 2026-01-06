@@ -1,54 +1,85 @@
 import streamlit as st
 import google.generativeai as genai
+import sqlite3
+import hashlib
+from gtts import gTTS
 import os
 
-# 1. إعدادات الصفحة والهوية
-st.set_page_config(page_title="Mongez AI v3.0", page_icon="🚀", layout="wide")
+# 1. إعدادات قاعدة البيانات (الذاكرة الحديدية)
+def init_db():
+    conn = sqlite3.connect('mongez_v4.db')
+    c = conn.cursor()
+    c.execute('''CREATE TABLE IF NOT EXISTS users 
+                 (username TEXT PRIMARY KEY, password TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS memory 
+                 (username TEXT, role TEXT, content TEXT)''')
+    conn.commit()
+    conn.close()
 
-# 2. التحقق من الهوية (نظام الحماية الذي طلبته)
-if 'auth' not in st.session_state:
-    st.session_state.auth = False
+def make_hashes(password):
+    return hashlib.sha256(str.encode(password)).hexdigest()
 
-def login():
-    st.title("🔐 تسجيل دخول مبرمج أحمد")
-    user = st.text_input("اسم المستخدم")
-    pw = st.text_input("كلمة المرور", type="password")
-    if st.button("دخول"):
-        if user == "ahmed" and pw == "123":
-            st.session_state.auth = True
-            st.rerun()
-        else:
-            st.error("بيانات خاطئة")
+def check_hashes(password, hashed_text):
+    if make_hashes(password) == hashed_text:
+        return hashed_text
+    return False
 
-if not st.session_state.auth:
-    login()
-    st.stop()
+# 2. إعدادات Gemini الاستقراية (v1.5 Flash)
+os.environ["GOOGLE_API_KEY"] = "YOUR_API_KEY_HERE" # ضع مفتاحك هنا
+genai.configure(api_key=os.environ["GOOGLE_API_KEY"])
+model = genai.GenerativeModel('gemini-1.5-flash')
 
-# 3. إعداد محرك Gemini 2.0 Flash
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-2.0-flash')
+# 3. واجهة المستخدم ونظام التسجيل
+st.set_page_config(page_title="مُنجز v4.0", layout="wide")
+init_db()
 
-# 4. واجهة المستخدم (صانع التطبيقات)
-st.sidebar.title("🛠️ أدوات منجز")
-mode = st.sidebar.selectbox("اختر الوضع", ["المساعد الذكي", "صانع الأكواد", "تحليل الصور"])
+if 'logged_in' not in st.session_state:
+    st.session_state['logged_in'] = False
 
-st.title("🚀 مُنجز: الشريك التقني الذكي")
-st.info("الوضع الحالي: تطوير التطبيقات والبرمجة الاحترافية")
+if not st.session_state['logged_in']:
+    cols = st.sidebar.selectbox("الدخول / التسجيل", ["تسجيل دخول", "إنشاء حساب جديد"])
+    
+    if cols == "إنشاء حساب جديد":
+        new_user = st.text_input("اسم المستخدم الجديد")
+        new_pass = st.text_input("كلمة المرور", type='password')
+        if st.button("إنشاء"):
+            conn = sqlite3.connect('mongez_v4.db')
+            c = conn.cursor()
+            c.execute('INSERT INTO users VALUES (?,?)', (new_user, make_hashes(new_pass)))
+            conn.commit()
+            st.success("تم إنشاء الحساب بنجاح! انتقل لتسجيل الدخول")
+    else:
+        user = st.sidebar.text_input("اسم المستخدم")
+        pw = st.sidebar.text_input("كلمة المرور", type='password')
+        if st.sidebar.button("دخول"):
+            conn = sqlite3.connect('mongez_v4.db')
+            c = conn.cursor()
+            c.execute('SELECT password FROM users WHERE username =?', (user,))
+            result = c.fetchone()
+            if result and check_hashes(pw, result[0]):
+                st.session_state['logged_in'] = True
+                st.session_state['user'] = user
+                st.rerun()
 
-# نظام الشات
-if "messages" not in st.session_state:
-    st.session_state.messages = []
+# 4. لوحة تحكم مُنجز (بعد الدخول)
+if st.session_state['logged_in']:
+    st.title("🚀 مُنجز: الشريك التقني v4.0")
+    st.sidebar.write(f"مرحباً بك، {st.session_state['user']}")
+    
+    # ميزة النطق الصوتي
+    mode = st.sidebar.radio("الأدوات", ["المساعد الذكي", "محول النص لصوت", "ذاكرة المشاريع"])
+    
+    user_input = st.chat_input("تحدث مع مُنجز...")
+    
+    if user_input:
+        response = model.generate_content(user_input)
+        st.write(response.text)
+        
+        if mode == "محول النص لصوت":
+            tts = gTTS(text=response.text, lang='ar')
+            tts.save("response.mp3")
+            st.audio("response.mp3")
 
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
-
-if prompt := st.chat_input("كيف يمكن لمنجز مساعدتك في بناء تطبيقك اليوم؟"):
-    st.session_state.messages.append({"role": "user", "content": prompt})
-    with st.chat_message("user"):
-        st.markdown(prompt)
-
-    with st.chat_message("assistant"):
-        response = model.generate_content(f"انت منجز، صانع تطبيقات خبير. طلب المستخدم: {prompt}")
-        st.markdown(response.text)
-        st.session_state.messages.append({"role": "assistant", "content": response.text})
+    if st.sidebar.button("تسجيل خروج"):
+        st.session_state['logged_in'] = False
+        st.rerun()
