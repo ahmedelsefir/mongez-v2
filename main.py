@@ -6,14 +6,12 @@ from gtts import gTTS
 import os
 import io
 
-# 1. إعداد قاعدة البيانات (الذاكرة الحديدية لمُنجز)
+# 1. إعداد قاعدة بيانات مُنجز (الذاكرة)
 def init_db():
     conn = sqlite3.connect('mongez_v4.db')
     c = conn.cursor()
-    # جدول المستخدمين
     c.execute('''CREATE TABLE IF NOT EXISTS users 
                  (username TEXT PRIMARY KEY, password TEXT)''')
-    # جدول الذاكرة لحفظ تدريبات المشاريع
     c.execute('''CREATE TABLE IF NOT EXISTS memory 
                  (username TEXT, role TEXT, content TEXT)''')
     conn.commit()
@@ -25,46 +23,44 @@ def make_hashes(password):
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
 
-# 2. النظام الأمني (استدعاء المفتاح من الأسرار)
+# 2. الربط الأمني مع المفتاح الجديد
 try:
-    # سيتم جلب المفتاح من إعدادات Secrets في Streamlit كما في صورتك
+    # جلب المفتاح المسمى GOOGLE_API_KEY من صفحة Secrets
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
     
-    # التعديل الهام: استخدام gemini-1.5-flash لضمان التوافق واختفاء خطأ 404
-    model = genai.GenerativeModel('gemini-1.5-flash') 
+    # التعديل النهائي لحل خطأ 404: إضافة -latest
+    model = genai.GenerativeModel('gemini-1.5-flash-latest') 
 except Exception as e:
-    st.warning("⚠️ يرجى التأكد من ضبط GOOGLE_API_KEY في إعدادات Secrets")
+    st.warning("⚠️ يرجى التأكد من ضبط GOOGLE_API_KEY في الأسرار")
 
-# 3. إعدادات واجهة المستخدم
-st.set_page_config(page_title="Mongez AI v4.0", page_icon="🚀", layout="wide")
+# 3. واجهة مُنجز الاحترافية
+st.set_page_config(page_title="Mongez v4.0", page_icon="🚀", layout="wide")
 init_db()
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
-# 4. بوابة الدخول والتسجيل
+# 4. نظام الدخول
 if not st.session_state['logged_in']:
-    st.sidebar.title("🔐 بوابة مُنجز v4.0")
-    menu = st.sidebar.selectbox("الدخول / التسجيل", ["تسجيل دخول", "إنشاء حساب جديد"])
+    st.sidebar.title("🔐 بوابة مُنجز")
+    menu = st.sidebar.selectbox("القائمة", ["تسجيل دخول", "إنشاء حساب"])
     
-    if menu == "إنشاء حساب جديد":
-        st.subheader("📝 إنشاء حساب تقني جديد")
+    if menu == "إنشاء حساب":
         new_user = st.text_input("اسم المستخدم")
         new_pass = st.text_input("كلمة المرور", type='password')
-        if st.button("تفعيل الحساب"):
+        if st.button("تسجيل"):
             conn = sqlite3.connect('mongez_v4.db')
             c = conn.cursor()
             try:
                 c.execute('INSERT INTO users VALUES (?,?)', (new_user, make_hashes(new_pass)))
                 conn.commit()
-                st.success("تم الإنشاء بنجاح! يمكنك الآن تسجيل الدخول")
+                st.success("تم الإنشاء! سجل دخولك الآن")
             except:
-                st.error("اسم المستخدم مأخوذ مسبقاً")
+                st.error("الاسم موجود مسبقاً")
             finally:
                 conn.close()
     else:
-        st.subheader("🔑 تسجيل الدخول")
         user = st.sidebar.text_input("اسم المستخدم")
         pw = st.sidebar.text_input("كلمة المرور", type='password')
         if st.sidebar.button("دخول"):
@@ -78,34 +74,24 @@ if not st.session_state['logged_in']:
                 st.session_state['user'] = user
                 st.rerun()
             else:
-                st.error("خطأ في بيانات الدخول")
+                st.error("بيانات خاطئة")
 
-# 5. لوحة التحكم والتدريب (بعد الدخول)
+# 5. تشغيل المساعد
 if st.session_state['logged_in']:
-    st.title(f"🚀 مُنجز v4.0: الشريك التقني")
-    st.sidebar.success(f"متصل الآن: {st.session_state['user']}")
+    st.title(f"🚀 مرحباً {st.session_state['user']} في مُنجز v4.0")
     
-    tool = st.sidebar.radio("الأدوات المتاحة", ["المساعد الذكي", "محول النص لصوت", "ذاكرة المشاريع"])
-    
-    user_input = st.chat_input("ابدأ التدريب أو اطلب كوداً...")
+    tool = st.sidebar.radio("الأدوات", ["المساعد الذكي", "محول الصوت"])
+    user_input = st.chat_input("تحدث مع شريكك التقني...")
     
     if user_input:
         try:
-            prompt = f"أنت مهندس برمجيات خبير. رد على {st.session_state['user']}: {user_input}"
-            response = model.generate_content(prompt)
-            
+            response = model.generate_content(user_input)
             st.chat_message("assistant").write(response.text)
             
-            # ميزة الصوت عند الطلب
-            if tool == "محول النص لصوت":
+            if tool == "محول الصوت":
                 tts = gTTS(text=response.text, lang='ar')
-                audio_fp = io.BytesIO()
-                tts.write_to_fp(audio_fp)
-                st.audio(audio_fp)
-                
+                fp = io.BytesIO()
+                tts.write_to_fp(fp)
+                st.audio(fp)
         except Exception as e:
-            st.error(f"حدث خطأ في الاتصال بالموديل: {e}")
-
-    if st.sidebar.button("تسجيل الخروج"):
-        st.session_state['logged_in'] = False
-        st.rerun()
+            st.error(f"خطأ: {e}")
