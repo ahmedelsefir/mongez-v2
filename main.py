@@ -30,7 +30,7 @@ try:
     genai.configure(api_key=API_KEY)
     
     # التعديل النهائي لحل خطأ 404: إضافة -latest
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     st.warning("⚠️ يرجى التأكد من ضبط GOOGLE_API_KEY في الأسرار")
 
