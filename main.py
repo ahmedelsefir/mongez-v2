@@ -109,3 +109,4 @@ if st.session_state['logged_in']:
     if st.sidebar.button("تسجيل خروج"):
         st.session_state['logged_in'] = False
         st.rerun()
+        
