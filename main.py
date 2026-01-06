@@ -32,7 +32,7 @@ try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
     # استخدام النسخة الأحدث لتجنب خطأ 404
-    model = genai.GenerativeModel('gemini-1.5-flash-latest')
+    model = genai.model = genai.GenerativeModel('gemini-pro')
 except Exception as e:
     st.warning("⚠️ يرجى ضبط GOOGLE_API_KEY في إعدادات Secrets للتشغيل")
 
