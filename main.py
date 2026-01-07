@@ -22,17 +22,18 @@ def make_hashes(password):
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
-
-# 2. الربط الأمني مع المفتاح الجديد
+# الربط الآلي الجذري مع سيرفر جوجل
 try:
-    # جلب المفتاح المسمى GOOGLE_API_KEY من صفحة Secrets
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
     
-    # التعديل النهائي لحل خطأ 404: إضافة -latest
-    model = genai.GenerativeModel('gemini-pro')
+    # برمجة الطرفية لاختيار الموديل المتاح تلقائياً
+    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
+    selected_model = available_models[0] if available_models else 'gemini-1.5-flash'
+    model = genai.GenerativeModel(selected_model)
+    
 except Exception as e:
-    st.warning("⚠️ يرجى التأكد من ضبط GOOGLE_API_KEY في الأسرار")
+    st.error(f"⚠️ خطأ في الربط مع السيرفر: {e}")
 
 # 3. واجهة مُنجز الاحترافية
 st.set_page_config(page_title="Mongez v4.0", page_icon="🚀", layout="wide")
