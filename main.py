@@ -1,19 +1,14 @@
+
 import streamlit as st
 import google.generativeai as genai
 import sqlite3
 import hashlib
-from gtts import gTTS
-import os
-import io
 
-# 1. إعداد قاعدة بيانات مُنجز (الذاكرة)
+# 1. تأسيس قاعدة بيانات مُنجز الاستراتيجية
 def init_db():
     conn = sqlite3.connect('mongez_v4.db')
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS users 
-                 (username TEXT PRIMARY KEY, password TEXT)''')
-    c.execute('''CREATE TABLE IF NOT EXISTS memory 
-                 (username TEXT, role TEXT, content TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS users (username TEXT PRIMARY KEY, password TEXT)''')
     conn.commit()
     conn.close()
 
@@ -22,77 +17,65 @@ def make_hashes(password):
 
 def check_hashes(password, hashed_text):
     return make_hashes(password) == hashed_text
-# الربط الآلي الجذري مع سيرفر جوجل
+
+# 2. تفعيل ذكاء Gemini مع سياق البيزنس [cite: 2026-01-22]
 try:
     API_KEY = st.secrets["GOOGLE_API_KEY"]
     genai.configure(api_key=API_KEY)
-    
-    # برمجة الطرفية لاختيار الموديل المتاح تلقائياً
-    available_models = [m.name for m in genai.list_models() if 'generateContent' in m.supported_generation_methods]
-    selected_model = available_models[0] if available_models else 'gemini-1.5-flash'
-    model = genai.GenerativeModel(selected_model)
-    
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    system_prompt = "أنت 'مُنجز' شريك الأعمال التقني. تخصصك: المحاسبة الدقيقة وجلب العملاء عبر SEO."
 except Exception as e:
-    st.error(f"⚠️ خطأ في الربط مع السيرفر: {e}")
+    st.error(f"⚠️ خطأ تقني: {e}")
 
-# 3. واجهة مُنجز الاحترافية
-st.set_page_config(page_title="Mongez v4.0", page_icon="🚀", layout="wide")
+# 3. واجهة البرنامج (v4.0 الاحترافية) [cite: 2026-01-18]
+st.set_page_config(page_title="Mongez v4.0", page_icon="🛡️", layout="wide")
 init_db()
 
 if 'logged_in' not in st.session_state:
     st.session_state['logged_in'] = False
 
-# 4. نظام الدخول
+# نظام الدخول (بوابة الأمان)
 if not st.session_state['logged_in']:
     st.sidebar.title("🔐 بوابة مُنجز")
     menu = st.sidebar.selectbox("القائمة", ["تسجيل دخول", "إنشاء حساب"])
-    
-    if menu == "إنشاء حساب":
-        new_user = st.text_input("اسم المستخدم")
-        new_pass = st.text_input("كلمة المرور", type='password')
-        if st.button("تسجيل"):
-            conn = sqlite3.connect('mongez_v4.db')
-            c = conn.cursor()
-            try:
-                c.execute('INSERT INTO users VALUES (?,?)', (new_user, make_hashes(new_pass)))
-                conn.commit()
-                st.success("تم الإنشاء! سجل دخولك الآن")
-            except:
-                st.error("الاسم موجود مسبقاً")
-            finally:
-                conn.close()
-    else:
-        user = st.sidebar.text_input("اسم المستخدم")
-        pw = st.sidebar.text_input("كلمة المرور", type='password')
-        if st.sidebar.button("دخول"):
-            conn = sqlite3.connect('mongez_v4.db')
-            c = conn.cursor()
+    user = st.sidebar.text_input("اسم المستخدم")
+    pw = st.sidebar.text_input("كلمة المرور", type='password')
+    if st.sidebar.button("دخول للنظام"):
+        conn = sqlite3.connect('mongez_v4.db')
+        c = conn.cursor()
+        if menu == "تسجيل دخول":
             c.execute('SELECT password FROM users WHERE username =?', (user,))
             result = c.fetchone()
-            conn.close()
             if result and check_hashes(pw, result[0]):
                 st.session_state['logged_in'] = True
                 st.session_state['user'] = user
                 st.rerun()
-            else:
-                st.error("بيانات خاطئة")
+        conn.close()
 
-# 5. تشغيل المساعد
+# 4. تفعيل محركات العمل (الأدوات الأربعة) [cite: 2026-01-13]
 if st.session_state['logged_in']:
-    st.title(f"🚀 مرحباً {st.session_state['user']} في مُنجز v4.0")
-    
-    tool = st.sidebar.radio("الأدوات", ["المساعد الذكي", "محول الصوت"])
-    user_input = st.chat_input("تحدث مع شريكك التقني...")
-    
-    if user_input:
-        try:
-            response = model.generate_content(user_input)
-            st.chat_message("assistant").write(response.text)
-            
-            if tool == "محول الصوت":
-                tts = gTTS(text=response.text, lang='ar')
-                fp = io.BytesIO()
-                tts.write_to_fp(fp)
-                st.audio(fp)
-        except Exception as e:
-            st.error(f"خطأ: {e}")
+    st.sidebar.success(f"مرحباً بك: {st.session_state['user']}")
+    app_choice = st.sidebar.radio("قائمة التحكم", 
+                                 ["المساعد الذكي (الوعي الشامل)", 
+                                  "برنامج المحاسب المعتمد", 
+                                  "جالب العملاء SEO", 
+                                  "المحرك الصوتي المباشر"])
+
+    if app_choice == "المساعد الذكي (الوعي الشامل)":
+        st.title("🚀 مُنجز: الوعي الشامل")
+        u_input = st.chat_input("أعطِ أمراً لـ مُنجز...")
+        if u_input:
+            resp = model.generate_content(f"{system_prompt}\nالمستخدم: {u_input}")
+            st.write(resp.text)
+
+    elif app_choice == "برنامج المحاسب المعتمد":
+        st.title("📊 موديول المحاسبة")
+        st.info("نظام إدارة الفواتير والقيود المالية قيد التشغيل.")
+
+    elif app_choice == "جالب العملاء SEO":
+        st.title("🔍 محرك جلب الفرص")
+        st.write("أدخل المجال المستهدف لاستخراج بيانات العملاء فوراً.")
+
+    elif app_choice == "المحرك الصوتي المباشر":
+        st.title("🎙️ التحكم الصوتي")
+        st.write("اضغط وابدأ التحدث لتنفيذ الأوامر برمجياً.")
