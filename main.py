@@ -3,19 +3,27 @@ import google.generativeai as genai
 import firebase_admin
 from firebase_admin import credentials, firestore, auth
 import hashlib
+import json  # أضفنا هذا لاستيراد مكتبة التعامل مع النصوص
 
-# 1. الاتصال بالسحاب (Firebase) بدلاً من SQLite [cite: 2026-01-13]
+# 1. الاتصال بالسحاب (Firebase) باستخدام "خزنة الأسرار" 🛡️
 if not firebase_admin._apps:
     try:
-        # تأكد أن ملف الجيسون في نفس مجلد المشروع
-        cred = credentials.Certificate("serviceAccountKey.json")
-        firebase_admin.initialize_app(cred)
+        # هنا التعديل: استدعاء المفتاح من خزنة Secrets
+        if "FIREBASE_SERVICE_ACCOUNT" in st.secrets:
+            # تحويل النص المخزن في الخزنة إلى تنسيق يفهمه بايثون
+            secret_info = json.loads(st.secrets["FIREBASE_SERVICE_ACCOUNT"])
+            cred = credentials.Certificate(secret_info)
+            firebase_admin.initialize_app(cred)
+        else:
+            # في حال كنت تعمل على جهازك الشخصي ووضعنا الملف يدوياً
+            cred = credentials.Certificate("serviceAccountKey.json")
+            firebase_admin.initialize_app(cred)
     except Exception as e:
         st.error(f"خطأ في الاتصال بالسحاب: {e}")
 
 db = firestore.client()
 
-# 2. وظائف الحماية وتشفير البيانات
+# بقية الكود (وظائف الحماية، واجهة البرنامج، إلخ) تبقى كما هي...
 def make_hashes(password):
     return hashlib.sha256(str.encode(password)).hexdigest()
 
